@@ -200,6 +200,16 @@ def verify_cli(s: Solver) -> None:
     else:
         utils.logger.always_print('program has errors.')
 
+def print_vmt(s : Solver) -> None: 
+    logic.print_sorts(s)
+    assert NotImplementedError
+    logic.print_variables(s)
+    logic.print_axioms(s)
+    logic.print_inits(s)
+    logic.print_transitions(s)
+    logic.print_safeties(s)
+
+
 def bmc(s: Solver) -> None:
     safety = syntax.And(*get_safety())
 
@@ -378,6 +388,10 @@ def parse_args(args: List[str]) -> None:
     subparsers = argparser.add_subparsers(title='subcommands', dest='subcommand')
     all_subparsers = []
 
+    printer_subparse = subparsers.add_parser('print', help='print the program after parsing in vmtlib style')
+    printer_subparse.set_defaults(main=print_vmt)
+    all_subparsers.append(printer_subparse)
+
     verify_subparser = subparsers.add_parser('verify', help='verify that the invariants are inductive')
     verify_subparser.set_defaults(main=verify_cli)
     all_subparsers.append(verify_subparser)
@@ -504,7 +518,6 @@ def parse_args(args: List[str]) -> None:
                                 help='generalize using unsat cores rather than brute force')
     updr_subparser.add_argument('--assert-inductive-trace', action=utils.YesNoAction, default=False,
                                 help='(for debugging mypyvy itself) check that frames are always inductive')
-
     verify_subparser.add_argument('--check-transition', default=None, nargs='+',
                                   help="when verifying inductiveness, check only these transitions")
     verify_subparser.add_argument('--check-invariant', default=None, nargs='+',

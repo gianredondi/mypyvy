@@ -98,8 +98,17 @@ def check_init(
     t = s.get_translator(1)
 
     with s.new_frame():
+        init_conjuncts = []
         for init in prog.inits():
-            s.add(t.translate_expr(init.expr))
+            init_conjuncts.append(init.expr)
+        s.add(t.translate_expr(syntax.And(*init_conjuncts)))
+        z3_expr = t.translate_expr(syntax.And(*init_conjuncts))
+        #print(z3_expr)
+        smtlib_str = z3_expr.sexpr()
+        print('inital formula')
+        print(smtlib_str)
+
+
 
         for inv in (prog.invs() if not safety_only else prog.safeties()):
             with s.new_frame():
@@ -659,3 +668,41 @@ def parse_and_typecheck_expr(input: str, n_states: int = 0, close_free_vars: boo
     with scope.n_states(n_states):
         typechecker.typecheck_expr(scope, e, None)
     return e
+
+def print_sorts(s : Solver) -> None:
+    prog = syntax.the_program
+    t = s.get_translator(1)
+    for sort in prog.sorts():
+        print("(declare-sort " + sort.name + " 0)")
+        
+def print_variables(s : Solver) -> None:
+    prog = syntax.the_program   
+    t = s.get_translator(1)
+    for var in prog.relations():
+        #print(var.name)
+        ar = var.arity
+        mutability = var.mutable
+        #print(mutability)
+        print("(declare-fun " + var.name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")
+        
+        if mutability:
+            print("(declare-fun " + var.name + "_next (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")
+            print("(define-fun " + var.name + " (" + " ".join(["V" + str(i) + " " + str(ar[i]) for i in range(len(ar))]) 
+                  + ") Bool (! (" + var.name + " " + " ".join(["V" + str(i) for i in range(len(ar))]) + ") :next " + var.name + "_next))")
+        else:
+            if len(ar) > 0:
+                pass 
+            else:
+                print( "(define-fun " + var.name + " () Bool " + "(!" + var.name + " :rigid true))" )
+
+def print_axioms(s : Solver) -> None:
+    prog = syntax.the_program
+    t = s.get_translator(1)
+    for axiom in prog.axioms():
+        axiom_smtlib = t.translate_expr(axiom.expr).sexpr()
+        annotated_axiom_smtlib = f"(! {axiom_smtlib} :axiom true)"
+        axioms = prog.axioms()
+        for i, axiom in enumerate(axioms):
+            axiom_smtlib = t.translate_expr(axiom.expr).sexpr()
+            annotated_axiom_smtlib = f"(! {axiom_smtlib} :axiom true)"
+            print(f"(define-fun axiom_{i} () Bool {annotated_axiom_smtlib})")
