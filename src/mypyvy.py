@@ -202,12 +202,13 @@ def verify_cli(s: Solver) -> None:
 
 def print_vmt(s : Solver) -> None: 
     logic.print_sorts(s)
-    assert NotImplementedError
     logic.print_variables(s)
     logic.print_axioms(s)
     logic.print_inits(s)
     logic.print_transitions(s)
     logic.print_safeties(s)
+    logic.print_invariants(s)
+
 
 
 def bmc(s: Solver) -> None:
@@ -581,7 +582,7 @@ def init_from_args() -> None:
     logging.root.addHandler(handler)
 
     if utils.args.print_cmdline:
-        utils.logger.always_print(' '.join([sys.executable] + sys.argv))
+        #utils.logger.always_print(' '.join([sys.executable] + sys.argv))
         utils.logger.info('Running mypyvy with the following options:')
         for k, v in sorted(vars(utils.args).items()):
             utils.logger.info(f'    {k} = {v!r}')

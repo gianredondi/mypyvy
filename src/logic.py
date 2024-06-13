@@ -674,35 +674,80 @@ def print_sorts(s : Solver) -> None:
     t = s.get_translator(1)
     for sort in prog.sorts():
         print("(declare-sort " + sort.name + " 0)")
-        
+
+
 def print_variables(s : Solver) -> None:
     prog = syntax.the_program   
     t = s.get_translator(1)
+    for var in prog.constants():
+        
+        mutability = var.mutable
+        if mutability:
+            new_name = "_0__" + var.name
+            print("(declare-const " + new_name + " " + var.sort.name + ")")
+            next_name = "_1__" + var.name
+            print("(declare-const " + next_name + " " + var.sort.name + ")")
+            print("(define-fun " + new_name + ".sv" + " () " + var.sort.name + " (! " + new_name + " :next " + next_name + "))")
+        else:
+            print("(declare-const " + var.name + " " + var.sort.name + ")")
+            print( "(define-fun " + var.name + ".sv" + " () " + var.sort.name + " " + "(! " + var.name + " :rigid true))" )
+
     for var in prog.relations():
-        #print(var.name)
         ar = var.arity
         mutability = var.mutable
-        #print(mutability)
-        print("(declare-fun " + var.name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")
-        
         if mutability:
-            print("(declare-fun " + var.name + "_next (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")
-            print("(define-fun " + var.name + " (" + " ".join(["V" + str(i) + " " + str(ar[i]) for i in range(len(ar))]) 
-                  + ") Bool (! (" + var.name + " " + " ".join(["V" + str(i) for i in range(len(ar))]) + ") :next " + var.name + "_next))")
-        else:
+            new_name = "_0__" + var.name
+            print("(declare-fun " + new_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")    
+            next_name = "_1__" + var.name
+            print("(declare-fun " + next_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")
             if len(ar) > 0:
-                pass 
+                print("(define-fun " + new_name + ".sv" + " (" + " ".join(["(V" + str(i) + " " + str(ar[i]) + ")" for i in range(len(ar))]) 
+                    + ") Bool (! (" + new_name + " " + " ".join(["V" + str(i) for i in range(len(ar))]) + ") :next " + next_name + "))")
             else:
-                print( "(define-fun " + var.name + " () Bool " + "(!" + var.name + " :rigid true))" )
+                print("(define-fun " + new_name + ".sv" + " () Bool (! " + new_name + " :next " + next_name + "))")
+        else:
+            print("(declare-fun " + var.name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")    
+            assert len(ar) > 0
 
 def print_axioms(s : Solver) -> None:
     prog = syntax.the_program
     t = s.get_translator(1)
-    for axiom in prog.axioms():
+    axioms = prog.axioms()
+    for i, axiom in enumerate(axioms):
         axiom_smtlib = t.translate_expr(axiom.expr).sexpr()
         annotated_axiom_smtlib = f"(! {axiom_smtlib} :axiom true)"
-        axioms = prog.axioms()
-        for i, axiom in enumerate(axioms):
-            axiom_smtlib = t.translate_expr(axiom.expr).sexpr()
-            annotated_axiom_smtlib = f"(! {axiom_smtlib} :axiom true)"
-            print(f"(define-fun axiom_{i} () Bool {annotated_axiom_smtlib})")
+        print(f"(define-fun axiom_{i} () Bool {annotated_axiom_smtlib})")
+
+def print_inits(s : Solver) -> None:
+    prog = syntax.the_program
+    t = s.get_translator(1)
+    inits = prog.inits()
+    init_conjuncts = [t.translate_expr(init.expr) for init in inits]
+    init_formula = z3.And(*init_conjuncts)
+    print(f"(define-fun init () Bool (! {init_formula.sexpr()} :init true))")
+
+def print_transitions(s : Solver) -> None:
+    prog = syntax.the_program
+    t = s.get_translator(2)
+    transitions = prog.transitions()
+    for i, transition in enumerate(transitions):
+        transition_formula = t.translate_expr(transition.as_twostate_formula(prog.scope))
+        annotated_transition_formula = f"(! {transition_formula.sexpr()} :action true)"
+        print(f"(define-fun transition_{i} () Bool {annotated_transition_formula})")
+
+def print_safeties(s : Solver) -> None:
+    prog = syntax.the_program
+    t = s.get_translator(1)
+    safeties = prog.safeties()
+    safety_conjuncts = [t.translate_expr(safety.expr) for safety in safeties]
+    safety_formula = z3.And(*safety_conjuncts)
+    print(f"(define-fun safety-prop () Bool (!{safety_formula.sexpr()} :invar-property 0))")
+
+def print_invariants(s : Solver) -> None:
+    prog = syntax.the_program
+    t = s.get_translator(1)   
+    invariants = prog.invs()
+    for i, invariant in enumerate(invariants):
+        invariant_formula = t.translate_expr(invariant.expr)
+        annotated_invariant_formula = f"(! {invariant_formula.sexpr()} :invar-property {i})"
+        print(f"(define-fun invariant_{i} () Bool {annotated_invariant_formula})")
