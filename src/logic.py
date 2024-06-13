@@ -709,6 +709,21 @@ def print_variables(s : Solver) -> None:
             print("(declare-fun " + var.name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") Bool)")    
             assert len(ar) > 0
 
+    for var in prog.functions():
+        # this is only the domain
+        ar = var.arity
+        mutability = var.mutable
+        if mutability:
+            new_name = "_0__" + var.name
+            print("(declare-fun " + new_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + var.sort.name + ")")    
+            next_name = "_1__" + var.name
+            print("(declare-fun " + next_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + var.sort.name + ")")
+            if len(ar) > 0:
+                print("(define-fun " + new_name + ".sv" + " (" + " ".join(["(V" + str(i) + " " + str(ar[i]) + ")" for i in range(len(ar))]) 
+                    + ") " + var.sort.name + " (! (" + new_name + " " + " ".join(["V" + str(i) for i in range(len(ar))]) + ") :next " + next_name + "))")
+            else:
+                print("(define-fun " + new_name + ".sv" + " () " + var.sort.name + " (! " + new_name + " :next " + next_name + "))")
+
 def print_axioms(s : Solver) -> None:
     prog = syntax.the_program
     t = s.get_translator(1)
