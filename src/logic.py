@@ -724,6 +724,10 @@ def print_variables(s : Solver) -> None:
             else:
                 print("(define-fun " + new_name + ".sv" + " () " + var.sort.name + " (! " + new_name + " :next " + next_name + "))")
 
+        else:
+            print("(declare-fun " + var.name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + var.sort.name + ")")  
+            
+
 def print_axioms(s : Solver) -> None:
     prog = syntax.the_program
     t = s.get_translator(1)
@@ -756,7 +760,7 @@ def print_safeties(s : Solver) -> None:
     safeties = prog.safeties()
     safety_conjuncts = [t.translate_expr(safety.expr) for safety in safeties]
     safety_formula = z3.And(*safety_conjuncts)
-    print(f"(define-fun safety-prop () Bool (!{safety_formula.sexpr()} :invar-property 0))")
+    print(f"(define-fun safety-prop () Bool (! {safety_formula.sexpr()} :invar-property 0))")
 
 def print_invariants(s : Solver) -> None:
     prog = syntax.the_program
