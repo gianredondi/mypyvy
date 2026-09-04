@@ -676,21 +676,31 @@ def print_sorts(s : Solver) -> None:
         print("(declare-sort " + sort.name + " 0)")
 
 
+def smt_sort_name(sort : syntax.Sort) -> str:
+    """SMT name of a mypyvy sort. Uninterpreted sorts carry `.name`, but the
+    built-in `bool`/`int` sorts do not, so they have to be mapped explicitly."""
+    if sort == syntax.BoolSort:
+        return "Bool"
+    if sort == syntax.IntSort:
+        return "Int"
+    return sort.name
+
+
 def print_variables(s : Solver) -> None:
-    prog = syntax.the_program   
+    prog = syntax.the_program
     t = s.get_translator(1)
     for var in prog.constants():
         
         mutability = var.mutable
         if mutability:
             new_name = "_0__" + var.name
-            print("(declare-const " + new_name + " " + var.sort.name + ")")
+            print("(declare-const " + new_name + " " + smt_sort_name(var.sort) + ")")
             next_name = "_1__" + var.name
-            print("(declare-const " + next_name + " " + var.sort.name + ")")
-            print("(define-fun " + new_name + ".sv" + " () " + var.sort.name + " (! " + new_name + " :next " + next_name + "))")
+            print("(declare-const " + next_name + " " + smt_sort_name(var.sort) + ")")
+            print("(define-fun " + new_name + ".sv" + " () " + smt_sort_name(var.sort) + " (! " + new_name + " :next " + next_name + "))")
         else:
-            print("(declare-const " + var.name + " " + var.sort.name + ")")
-            print( "(define-fun " + var.name + ".sv" + " () " + var.sort.name + " " + "(! " + var.name + " :rigid true))" )
+            print("(declare-const " + var.name + " " + smt_sort_name(var.sort) + ")")
+            print( "(define-fun " + var.name + ".sv" + " () " + smt_sort_name(var.sort) + " " + "(! " + var.name + " :rigid true))" )
 
     for var in prog.relations():
         ar = var.arity
@@ -715,17 +725,17 @@ def print_variables(s : Solver) -> None:
         mutability = var.mutable
         if mutability:
             new_name = "_0__" + var.name
-            print("(declare-fun " + new_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + var.sort.name + ")")    
+            print("(declare-fun " + new_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + smt_sort_name(var.sort) + ")")    
             next_name = "_1__" + var.name
-            print("(declare-fun " + next_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + var.sort.name + ")")
+            print("(declare-fun " + next_name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + smt_sort_name(var.sort) + ")")
             if len(ar) > 0:
                 print("(define-fun " + new_name + ".sv" + " (" + " ".join(["(V" + str(i) + " " + str(ar[i]) + ")" for i in range(len(ar))]) 
-                    + ") " + var.sort.name + " (! (" + new_name + " " + " ".join(["V" + str(i) for i in range(len(ar))]) + ") :next " + next_name + "))")
+                    + ") " + smt_sort_name(var.sort) + " (! (" + new_name + " " + " ".join(["V" + str(i) for i in range(len(ar))]) + ") :next " + next_name + "))")
             else:
-                print("(define-fun " + new_name + ".sv" + " () " + var.sort.name + " (! " + new_name + " :next " + next_name + "))")
+                print("(define-fun " + new_name + ".sv" + " () " + smt_sort_name(var.sort) + " (! " + new_name + " :next " + next_name + "))")
 
         else:
-            print("(declare-fun " + var.name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + var.sort.name + ")")  
+            print("(declare-fun " + var.name + " (" + " ".join([str(ar[sort]) for sort in range(len(ar))]) + ") " + smt_sort_name(var.sort) + ")")  
             
 
 def print_axioms(s : Solver) -> None:
