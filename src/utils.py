@@ -100,7 +100,6 @@ class MypyvyArgs:
     diagrams_subclause_complete: bool
     use_z3_unsat_cores: bool
     smoke_test_solver: bool
-    sketch: bool
     check_transition: Sequence[str]
     check_invariant: Sequence[str]
     safety: str
@@ -133,6 +132,8 @@ class MypyvyArgs:
     relax: bool
     relax_backwards: bool
     relax_forwards: bool
+    predicate_complexity: bool
+    verbose: bool
 
     def main(self, solver: Any) -> None:
         ...

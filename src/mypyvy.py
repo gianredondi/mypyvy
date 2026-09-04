@@ -8,14 +8,13 @@ import logging
 import sys
 from typing import Any, cast, Dict, List, Optional, Tuple, TypeVar, Callable, Union, Sequence, Set
 import z3
-import resource
 
 import logic
 from logic import Solver, Trace
 import parser
 import typechecker
 import syntax
-from syntax import Expr, Program, InvariantDecl, Not
+from syntax import Expr, Program, InvariantDecl
 from semantics import RelationInterps, ConstantInterps, FunctionInterps
 import updr
 import utils
@@ -191,7 +190,7 @@ def verify(s: Solver) -> bool:
 def verify_cli(s: Solver) -> None:
     try:
         result = verify(s)
-    except logic.SolverReturnedUnknown as e:
+    except logic.SolverReturnedUnknown:
         utils.logger.always_print('unknown.')
         return
 
@@ -269,7 +268,7 @@ def load_relaxed_trace_from_updr_cex(prog: Program, s: Solver) -> logic.Trace:
 
     components: List[syntax.TraceComponent] = []
 
-    xml_decls = reversed(collection.childNodes)
+    xml_decls = reversed(collection.childNodes)  # type: ignore
     seen_first = False
 
     for elm in xml_decls:
@@ -383,6 +382,13 @@ def check_one_bounded_width_invariant(s: Solver) -> None:
 def relax(s: Solver) -> None:
     print(relaxed_traces.relaxed_program(syntax.the_program))
 
+def do_fbii(s: Solver) -> None:
+    import fbii
+    if utils.args.predicate_complexity:
+        fbii.print_fbii_predicate_complexity(syntax.the_program)
+    else:
+        fbii.check_fbii(s)
+
 def parse_args(args: List[str]) -> None:
     argparser = argparse.ArgumentParser()
 
@@ -446,6 +452,16 @@ def parse_args(args: List[str]) -> None:
     )
     check_one_bounded_width_invariant_parser.set_defaults(main=check_one_bounded_width_invariant)
     all_subparsers.append(check_one_bounded_width_invariant_parser)
+
+    fbii_subparser = subparsers.add_parser(
+        'fbii',
+        help='check a forward-backward incremental induction proof')
+    fbii_subparser.add_argument('--verbose', action='store_true', default=False,
+                                help='print queried formulas for each check')
+    fbii_subparser.add_argument('--predicate-complexity', action='store_true', default=False,
+                                help='print complexity details about predicates used in invariants and fbii proof steps, without checking')
+    fbii_subparser.set_defaults(main=do_fbii)
+    all_subparsers.append(fbii_subparser)
 
     all_subparsers += pd.add_argparsers(subparsers)
 

@@ -17,7 +17,6 @@ reserved = {
     'init': 'INIT',
     'transition': 'TRANSITION',
     'invariant': 'INVARIANT',
-    'sketch': 'SKETCH',
     'axiom': 'AXIOM',
     'new': 'NEW',
     'forall': 'FORALL',
@@ -43,6 +42,9 @@ reserved = {
     'distinct': 'DISTINCT',
     'bool': 'BOOL',
     'int': 'INT',
+    'fbii': 'FBII',
+    'prophecy': 'PROPHECY',
+    'by': 'BY',
 }
 
 tokens = [
@@ -402,26 +404,21 @@ def p_decl_init(p: Any) -> None:
 
 def p_safety_or_invariant_keyword_safety(p: Any) -> None:
     'safety_or_invariant_keyword : SAFETY'
-    p[0] = (p.slice[1], True, False)
+    p[0] = (p.slice[1], True)
 
 def p_safety_or_invariant_keyword_invariant(p: Any) -> None:
     'safety_or_invariant_keyword : INVARIANT'
-    p[0] = (p.slice[1], False, False)
-
-def p_safety_or_invariant_keyword_sketch_invariant(p: Any) -> None:
-    'safety_or_invariant_keyword : SKETCH INVARIANT'
-    p[0] = (p.slice[1], False, True)
+    p[0] = (p.slice[1], False)
 
 def p_invariant_decl(p: Any) -> None:
     'invariant_decl : safety_or_invariant_keyword opt_name expr'
     tok: Token
     is_safety: bool
-    is_sketch: bool
-    tok, is_safety, is_sketch = p[1]
+    tok, is_safety = p[1]
     opt_name: Optional[str] = p[2]
     expr: syntax.Expr = p[3]
     span = loc_join(tok, expr.span)
-    p[0] = syntax.InvariantDecl(opt_name, expr, is_safety, is_sketch, span=span)
+    p[0] = syntax.InvariantDecl(opt_name, expr, is_safety, span=span)
 
 def p_decl_invariant(p: Any) -> None:
     'decl : invariant_decl'
@@ -834,6 +831,108 @@ def p_decl_trace(p: Any) -> None:
     'decl : satunsat TRACE LBRACE trace_components RBRACE'
     satunsat_tok = p[1]
     p[0] = syntax.TraceDecl(p[4], sat=satunsat_tok.value == 'sat', span=loc_join(satunsat_tok, p.slice[5]))
+
+# --- fbii grammar rules ---
+
+def p_decl_fbii(p: Any) -> None:
+    'decl : FBII LBRACE fbii_steps RBRACE'
+    p[0] = syntax.FbiiDecl(p[3], span=loc_join(p.slice[1], p.slice[4]))
+
+def p_fbii_steps_empty(p: Any) -> None:
+    'fbii_steps : empty'
+    p[0] = []
+
+def p_fbii_steps_step(p: Any) -> None:
+    'fbii_steps : fbii_steps fbii_step'
+    p[0] = p[1] + [p[2]]
+
+def p_fbii_direction_forward(p: Any) -> None:
+    'fbii_direction : ID'
+    if p[1] not in ('forward', 'backward'):
+        utils.print_error(p.slice[1], f"syntax error: expected 'forward' or 'backward', got '{p[1]}'")
+        return
+    p[0] = p.slice[1]
+
+def p_fbii_proph_params_empty(p: Any) -> None:
+    'fbii_proph_params : empty'
+    p[0] = ()
+
+def p_fbii_proph_params_some(p: Any) -> None:
+    'fbii_proph_params : sortedvars'
+    p[0] = p[1]
+
+def p_fbii_body_empty(p: Any) -> None:
+    'fbii_body : empty'
+    p[0] = []
+
+def p_fbii_body_inv(p: Any) -> None:
+    'fbii_body : fbii_body invariant_decl'
+    p[0] = p[1] + [p[2]]
+
+def p_fbii_step_simple(p: Any) -> None:
+    'fbii_step : fbii_direction opt_name LBRACE fbii_body RBRACE'
+    dir_tok: Token = p[1]
+    p[0] = syntax.FbiiStepDecl(
+        direction=dir_tok.value,
+        name=p[2],
+        params=(),
+        body=p[4],
+        has_prophecy=False,
+        prophecy=None,
+        span=loc_join(dir_tok, p.slice[5]),
+    )
+
+def p_fbii_step_prophecy_no_by(p: Any) -> None:
+    'fbii_step : fbii_direction opt_name PROPHECY fbii_proph_params LBRACE fbii_body RBRACE'
+    dir_tok: Token = p[1]
+    p[0] = syntax.FbiiStepDecl(
+        direction=dir_tok.value,
+        name=p[2],
+        params=p[4],
+        body=p[6],
+        has_prophecy=True,
+        prophecy=None,
+        span=loc_join(dir_tok, p.slice[7]),
+    )
+
+def p_fbii_step_prophecy_with_by(p: Any) -> None:
+    'fbii_step : fbii_direction opt_name PROPHECY fbii_proph_params LBRACE fbii_body RBRACE BY LBRACE fbii_prophecy_body RBRACE'
+    dir_tok: Token = p[1]
+    p[0] = syntax.FbiiStepDecl(
+        direction=dir_tok.value,
+        name=p[2],
+        params=p[4],
+        body=p[6],
+        has_prophecy=True,
+        prophecy=p[10],
+        span=loc_join(dir_tok, p.slice[11]),
+    )
+
+def p_fbii_prophecy_body_empty(p: Any) -> None:
+    'fbii_prophecy_body : empty'
+    p[0] = []
+
+def p_fbii_prophecy_body_item(p: Any) -> None:
+    'fbii_prophecy_body : fbii_prophecy_body fbii_prophecy_item'
+    p[0] = p[1] + [p[2]]
+
+def p_fbii_prophecy_item_inv(p: Any) -> None:
+    'fbii_prophecy_item : invariant_decl'
+    p[0] = p[1]
+
+def p_fbii_prophecy_item_select(p: Any) -> None:
+    'fbii_prophecy_item : ID expr'
+    if p[1] != 'proph_select':
+        utils.print_error(p.slice[1], f"syntax error: expected an invariant declaration or a prophecy heuristic ('proph_select' or 'proph_default'), got '{p[1]}'")
+        return
+    p[0] = syntax.FbiiHeuristicDecl('proph_select', p[2], span=p.slice[1])
+
+def p_fbii_prophecy_item_preserve(p: Any) -> None:
+    'fbii_prophecy_item : ID'
+    if p[1] != 'proph_default':
+        utils.print_error(p.slice[1], f"syntax error: expected an invariant declaration or a prophecy heuristic ('proph_select' or 'proph_default'), got '{p[1]}'")
+        return
+    p[0] = syntax.FbiiHeuristicDecl('proph_default', span=p.slice[1])
 
 def p_empty(p: Any) -> None:
     'empty :'
