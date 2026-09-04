@@ -764,19 +764,37 @@ def print_transitions(s : Solver) -> None:
         annotated_transition_formula = f"(! {transition_formula.sexpr()} :action true)"
         print(f"(define-fun transition_{i} () Bool {annotated_transition_formula})")
 
+def has_safeties() -> bool:
+    return any(inv.is_safety for inv in syntax.the_program.invs())
+
 def print_safeties(s : Solver) -> None:
     prog = syntax.the_program
     t = s.get_translator(1)
-    safeties = prog.safeties()
-    safety_conjuncts = [t.translate_expr(safety.expr) for safety in safeties]
+    safety_conjuncts = [t.translate_expr(x.expr) for x in prog.safeties()]
+    if not safety_conjuncts:
+        # A program with no `safety` declaration has no property to emit here:
+        # z3.And() with no arguments prints the bare symbol `and`, which is not
+        # valid SMT-LIB. Emit nothing, and let print_invariants number the
+        # invariants from 0 instead.
+        return
     safety_formula = z3.And(*safety_conjuncts)
     print(f"(define-fun safety-prop () Bool (! {safety_formula.sexpr()} :invar-property 0))")
 
 def print_invariants(s : Solver) -> None:
     prog = syntax.the_program
-    t = s.get_translator(1)   
-    invariants = prog.invs()
+    t = s.get_translator(1)
+    # The property to verify is the conjunction of all `safety` declarations,
+    # matching the rest of mypyvy (updr establishes every program.safeties()).
+    # print_safeties emits it as :invar-property 0, so the safety invariants
+    # are skipped here: emitting them again would produce a second definition
+    # annotated with id 0, and a consumer that keeps the last annotation it
+    # sees would end up checking only the first safety instead of the
+    # conjunction. The remaining (auxiliary) invariants are numbered from 1,
+    # or from 0 when there is no safety property to occupy that slot.
+    invariants = [inv for inv in prog.invs() if not inv.is_safety]
+    base = 1 if has_safeties() else 0
     for i, invariant in enumerate(invariants):
+        idx = i + base
         invariant_formula = t.translate_expr(invariant.expr)
-        annotated_invariant_formula = f"(! {invariant_formula.sexpr()} :invar-property {i})"
-        print(f"(define-fun invariant_{i} () Bool {annotated_invariant_formula})")
+        annotated_invariant_formula = f"(! {invariant_formula.sexpr()} :invar-property {idx})"
+        print(f"(define-fun invariant_{idx} () Bool {annotated_invariant_formula})")
